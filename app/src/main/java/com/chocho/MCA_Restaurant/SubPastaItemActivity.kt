@@ -16,6 +16,18 @@ import com.google.firebase.database.FirebaseDatabase
 import com.google.firebase.database.ktx.database
 import com.google.firebase.ktx.Firebase
 
+/**
+ * [메뉴 상세 화면 - 파스타]
+ *
+ * SubPastaActivity 에서 넘겨준 "key"(메뉴 순번)에 맞는 레이아웃(activity_sub_*.xml)을 띄운다.
+ * 화면: 큰 배너 사진 / 영문 메뉴명·설명·가격 / [-] 수량 [+] / [담기] / 뒤로가기
+ *
+ * - 수량은 1~10. +/- 를 길게 누르면 0.1초마다 연속으로 증감한다.
+ * - [담기] → Firebase table/{메뉴번호} 에 (메뉴명, 수량, 수량×단가) 저장 후 SubPastaActivity 로 복귀
+ *   (파스타 메뉴번호: 1~7. 같은 메뉴를 다시 담으면 수량이 더해지지 않고 새 값으로 덮어쓴다)
+ *
+ * 다른 *ItemActivity 들도 같은 구조다.
+ */
 class SubPastaItemActivity : AppCompatActivity() {
 
     private lateinit var plusButton: ImageButton
@@ -39,6 +51,7 @@ class SubPastaItemActivity : AppCompatActivity() {
     private var number = 1
 
     //database
+    // Firebase Realtime DB 의 "table" 노드 = 현재 테이블의 장바구니
     private val database = Firebase.database
     private val tableDatabase = database.getReference("table")
 
@@ -48,6 +61,7 @@ class SubPastaItemActivity : AppCompatActivity() {
     private var sound3 = 0
     private var sound4 = 0
 
+    // (사용되지 않음) +/- 겸용 연속 증감 Runnable. 실제로는 아래 handler1_up / handler1_down 을 쓴다.
     private val handler: Handler = Handler()
     private val runnable: Runnable = object : Runnable {
         override fun run() {
@@ -62,6 +76,7 @@ class SubPastaItemActivity : AppCompatActivity() {
 
     private var isIncreasing: Boolean = false
 
+    // [+] 버튼을 길게 누르는 동안 0.1초마다 수량 +1 (최대 10)
     private val handler1_up: Handler = Handler()
     private val runnable1_up: Runnable = object : Runnable {
         override fun run() {
@@ -77,6 +92,7 @@ class SubPastaItemActivity : AppCompatActivity() {
             pmText.text = number.toString()
         }
     }
+    // [-] 버튼을 길게 누르는 동안 0.1초마다 수량 -1 (최소 1)
     private val handler1_down: Handler = Handler()
     private val runnable1_down: Runnable = object : Runnable {
         override fun run() {
@@ -108,6 +124,7 @@ class SubPastaItemActivity : AppCompatActivity() {
     private fun init(){
 
         //전 화면에서 값이 넘어 오는것 받기
+        // 목록 화면에서 넘어온 메뉴 순번 (1부터). 이 값으로 레이아웃과 저장할 메뉴번호를 고른다.
         val itemValue = intent.getIntExtra("key", 0)
 
         //애니매이션
@@ -145,6 +162,7 @@ class SubPastaItemActivity : AppCompatActivity() {
         pastaCrab = this.resources.getString(R.string.Pasta_crab)
 
         //plus minus button
+        // 길게 누르면 연속 증감 시작. false 를 반환해서 아래 터치 리스너도 함께 동작하게 한다.
         plusButton.setOnLongClickListener {
             handler1_up.post(runnable1_up)
             false
@@ -155,10 +173,12 @@ class SubPastaItemActivity : AppCompatActivity() {
             false
         }
 
+        // 누르는 순간 1 증감, 손을 떼면 연속 증감 중지
         plusButton.setOnTouchListener { _, event -> handleButtonTouchEvent(event, isPlusButton = true) }
 
         minusButton.setOnTouchListener { _, event -> handleButtonTouchEvent(event, isPlusButton = false) }
 
+        // [담기]: 선택한 메뉴/수량/금액을 Firebase table/{메뉴번호} 에 저장하고 목록 화면으로 돌아간다.
         bringButton.setOnClickListener {
             soundPool?.play(sound1, 0.5f, 0.5f, 0, 0, 1f)
 
@@ -206,6 +226,7 @@ class SubPastaItemActivity : AppCompatActivity() {
             startActivity(intent)
         }
 
+        // 배너 왼쪽 위 뒤로가기 → 저장하지 않고 목록 화면으로
         backButtonWhite.setOnClickListener {
             soundPool?.play(sound1, 0.5f, 0.5f, 0, 0, 1f)
             intent = Intent(this, SubPastaActivity::class.java)
@@ -215,6 +236,13 @@ class SubPastaItemActivity : AppCompatActivity() {
 
     }
 
+    /**
+     * +/- 버튼 터치 처리
+     *
+     * ACTION_DOWN: 효과음 + 수량 1 증감(1~10 범위)
+     * ACTION_UP  : 길게 누르기로 시작된 연속 증감을 멈춘다
+     * @return false (다른 리스너도 이벤트를 받도록)
+     */
     private fun handleButtonTouchEvent(event: MotionEvent, isPlusButton: Boolean): Boolean {
         if (event.action == MotionEvent.ACTION_DOWN) {
             soundPool?.play(sound1, 0.5f, 0.5f, 0, 0, 1f)
@@ -240,6 +268,7 @@ class SubPastaItemActivity : AppCompatActivity() {
         return false
     }
 
+    // 버튼 효과음 준비 (res/raw/push.mp3 를 sound1 으로 사용)
     @SuppressLint("ObsoleteSdkInt")
     private fun sound(){
         soundPool = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {

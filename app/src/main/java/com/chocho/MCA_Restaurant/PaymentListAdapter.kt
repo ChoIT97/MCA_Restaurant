@@ -14,6 +14,19 @@ import com.google.firebase.database.ktx.database
 import com.google.firebase.ktx.Firebase
 
 
+/**
+ * [주문 목록(장바구니) 어댑터]
+ *
+ * 주문 목록 화면의 각 줄(activity_bag_item.xml)을 그린다.
+ * 한 줄: 메뉴 이름 / 금액 / [-] 수량 [+] / [X 삭제]
+ *
+ * +/- 나 삭제를 누르면 Firebase table/{메뉴번호} 를 직접 수정하고,
+ * 그 변경이 FirebaseViewModel 을 통해 다시 화면에 반영된다. (화면 숫자를 직접 바꾸지 않음)
+ *
+ * 메뉴번호 규칙 (각 *ItemActivity 와 동일해야 함)
+ *   1~7   파스타   /  8~12  피자    / 13~16 애피타이저
+ *  17~20  스테이크 / 21~26  음료
+ */
 @Suppress("NAME_SHADOWING")
 class PaymentListAdapter(private val context: Context) : RecyclerView.Adapter<PaymentListAdapter.ViewHolder>() {
 
@@ -58,6 +71,7 @@ class PaymentListAdapter(private val context: Context) : RecyclerView.Adapter<Pa
 
     private var dataClassMeatList = mutableListOf<DataClassMeat>()
 
+    // ViewModel 에서 받은 최신 장바구니 목록으로 교체한다. (호출 후 notifyDataSetChanged 필요)
     fun setListData(data: MutableList<DataClassMeat>) {
         dataClassMeatList = data
     }
@@ -85,6 +99,14 @@ class PaymentListAdapter(private val context: Context) : RecyclerView.Adapter<Pa
 
 
         //+-선택창
+        /**
+         * 이 줄의 메뉴 이름이 [text] 와 같으면 +/- 버튼을 연결한다.
+         *
+         * @param text  메뉴 이름
+         * @param num   Firebase table 의 메뉴번호 키
+         * @param value 메뉴 단가 → 금액 = 수량 × 단가 로 다시 계산해서 저장
+         * 수량은 1~10 범위로 제한한다.
+         */
         fun selectPlusMinus(text: String, num: String, value: Int) {
 
             if (holder.textName.text == text) {
@@ -110,6 +132,10 @@ class PaymentListAdapter(private val context: Context) : RecyclerView.Adapter<Pa
 
 
         //삭제창
+        /**
+         * 이 줄의 메뉴 이름이 [text] 와 같으면 X 버튼에 "삭제하시겠습니까?" 확인 팝업을 연결한다.
+         * Yes → Firebase table/{num} 삭제 + 목록에서 제거
+         */
         fun selectDelete(text: String, num: String) {
             if (holder.textName.text == text) {
                 val builder = AlertDialog.Builder(context)
@@ -140,6 +166,7 @@ class PaymentListAdapter(private val context: Context) : RecyclerView.Adapter<Pa
         }
 
         //Plus  Minus 버튼 눌렀을 때
+        // 메뉴 이름으로 어떤 메뉴인지 찾아 버튼 동작을 연결한다. (이름, 메뉴번호, 단가)
         selectPlusMinus(pastaGarlic, "1", 24800)
         selectPlusMinus(pastaTriple, "2", 24800)
         selectPlusMinus(pastaCarbonara, "3", 25500)

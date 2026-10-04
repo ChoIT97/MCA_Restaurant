@@ -15,6 +15,18 @@ import androidx.recyclerview.widget.GridLayoutManager
 import androidx.recyclerview.widget.RecyclerView
 
 
+/**
+ * [메뉴 화면 - 파스타]
+ *
+ * 왼쪽 사이드바: 카테고리 이동 (피자·애피타이저·스테이크·음료) — 현재 카테고리는 흰 글씨로 강조
+ * 가운데: 파스타 메뉴 카드 2열 그리드 (7종)
+ * 오른쪽 아래: 장바구니(🛍) 버튼 → 주문 목록(PaymentListActivity)
+ *
+ * 메뉴 카드를 누르면 상세 화면으로 "key"(1부터 시작하는 메뉴 순번)를 넘긴다.
+ * 상세 화면에서 담으면 Firebase table/1~7 에 저장된다.
+ *
+ * 다른 카테고리 화면(Sub*Activity)들도 같은 구조다.
+ */
 class SubPastaActivity : AppCompatActivity() {
 
     private val items = mutableListOf<DataClassSubActivity>()
@@ -49,6 +61,7 @@ class SubPastaActivity : AppCompatActivity() {
     private lateinit var recyclerView: RecyclerView
 
 
+    // 화면 생성: 레이아웃을 붙이고 init() 에서 나머지 초기화
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_pasta)
@@ -57,6 +70,7 @@ class SubPastaActivity : AppCompatActivity() {
 
     }
 
+    // 뷰 연결, 효과음 준비, 사이드바/장바구니 클릭, 메뉴 그리드 구성
     private fun init() {
 
         // 애니매이션
@@ -94,6 +108,7 @@ class SubPastaActivity : AppCompatActivity() {
         //클릭시 소리 사운드
         sound()
 
+        // 사이드바 카테고리 / 장바구니 버튼 공통 클릭 처리: 눌린 뷰 id 에 맞는 화면으로 이동 (효과음 + 전환 애니메이션 없음)
         val clickListener = View.OnClickListener {
             val intent = when (it.id) {
                 R.id.stakeLinearLayout -> intentSubStakeActivity
@@ -114,6 +129,7 @@ class SubPastaActivity : AppCompatActivity() {
         waterLinearLayout.setOnClickListener(clickListener)
         paymentImageView.setOnClickListener(clickListener)
 
+        // 그리드에 보여줄 메뉴 목록 (사진, 이름, 단가). 단가는 *ItemActivity / PaymentListAdapter 의 값과 같아야 한다.
         val itemList = listOf(
 
             DataClassSubActivity(R.drawable.pasta_garlic, Text = pastaGarlic, 24800),
@@ -132,6 +148,7 @@ class SubPastaActivity : AppCompatActivity() {
         recyclerView.layoutManager = GridLayoutManager(this, 2)
 
         //Item 클릭 함수
+        // 메뉴 카드 클릭 → 메뉴 이름으로 순번(key)을 정해 상세 화면으로 이동
         subActivityAdapter.itemClick = object : SubActivityAdapter.ItemClick {
             override fun onClick(view: View, position: Int) {
                 val itemValue = when (items[position].Text) {
@@ -153,6 +170,7 @@ class SubPastaActivity : AppCompatActivity() {
 
     }
 
+    // 버튼 효과음 준비 (res/raw/push.mp3 를 sound1 으로 사용, 나머지는 로드만 하고 사용하지 않음)
     @SuppressLint("ObsoleteSdkInt")
     private fun sound() {
         soundPool = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
