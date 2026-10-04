@@ -17,6 +17,13 @@ import com.google.firebase.database.ValueEventListener
 import com.google.firebase.database.ktx.database
 import com.google.firebase.ktx.Firebase
 
+/**
+ * [테스트용 - 현재 사용하지 않음]
+ *
+ * 외부 웹페이지(mcapay.dothome.co.kr)를 WebView 로 띄워 결제를 흉내내던 초기 버전.
+ * Manifest 에는 등록되어 있지만 다른 화면에서 이 화면으로 이동하는 코드는 없다.
+ * 버튼을 누르면 table 을 master/1번 테이블 로 옮기고 시작 화면으로 돌아간다.
+ */
 class TestWebView : AppCompatActivity() {
     @SuppressLint("SetJavaScriptEnabled")
     override fun onCreate(savedInstanceState: Bundle?) {

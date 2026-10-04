@@ -23,6 +23,12 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 
+/**
+ * [테스트용 - 현재 사용하지 않음]
+ *
+ * 카카오페이 연동을 처음 실험하던 화면. AndroidManifest 에 등록되어 있지 않아 실행되지 않는다.
+ * 실제 결제 로직은 PaymentListActivity 로 옮겨졌다.
+ */
 class TestKakopay : AppCompatActivity() {
 
     private val client = OkHttpClient()

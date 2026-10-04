@@ -23,6 +23,18 @@ import java.util.concurrent.Executors
 import java.util.concurrent.TimeUnit
 
 
+/**
+ * [주문 목록 / 결제 화면]
+ *
+ * 1. Firebase "table" 노드(장바구니)를 실시간 구독해서 목록과 총 금액을 보여준다.
+ * 2. [전체삭제] → table 노드 삭제 후 메뉴 화면으로
+ * 3. [주문] → 카카오페이 단건결제(테스트 CID: TC0ONETIME) 진행
+ *    ready(결제 준비) → 브라우저에서 결제 → approval_url 페이지가 myapp:// 딥링크로 앱을 다시 열어줌
+ *    → onNewIntent 로 pg_token 수신 → approve(결제 승인)
+ * 4. 승인되면 장바구니를 "master" 노드로 복사(주방/서빙 로봇 쪽에서 읽음)하고 table 을 비운 뒤 시작 화면으로
+ *
+ * Manifest 에서 launchMode="singleTop" + myapp 스킴 intent-filter 로 딥링크를 받는다.
+ */
 class PaymentListActivity : AppCompatActivity() {
 
     private val dec = java.text.DecimalFormat("###,###")
@@ -35,13 +47,16 @@ class PaymentListActivity : AppCompatActivity() {
     private val table: MutableList<Any> = mutableListOf()
 
     //kakopay
+    // 카카오 Admin 키. 주의: 소스에 키가 그대로 노출되어 있으므로 실제 배포 시에는 서버로 옮기고 키를 재발급해야 한다.
     private val admin = "KakaoAK 471ce1832263a9c17fbec652e3ec12b9"
+    // 결제 성공/실패/취소 후 이동할 주소. 로컬 PC 웹서버(같은 Wi-Fi)에서 myapp:// 딥링크로 앱을 다시 열어주는 페이지를 띄운다.
     private val approvalUrl = "http://192.168.0.6:8080/"
     private val failUrl = "http://192.168.0.6:8080/"
     private val cancelUrl = "http://192.168.0.6:8080/"
 
     private val client = OkHttpClient()
     private var receivedIntent: Intent? = null
+    // 결제 상태를 1초마다 조회하기 위한 스케줄러
     private val executor = Executors.newSingleThreadScheduledExecutor()
 
     //리사이클러뷰 변수
@@ -49,6 +64,7 @@ class PaymentListActivity : AppCompatActivity() {
     private val viewModel by lazy { ViewModelProvider(this).get(FirebaseViewModel::class.java) }
 
     //총 합
+    // 장바구니 총 금액 (table 의 meatValue 합계)
     private var totalAmountSum = 0
 
     private lateinit var backButton: ImageButton
@@ -124,6 +140,7 @@ class PaymentListActivity : AppCompatActivity() {
         observerData()
 
         //테이블 데이터베이스에서 가격 정보 가져오기
+        // 장바구니가 바뀔 때마다 총 금액을 다시 계산하고, 장바구니가 비었는지에 따라 버튼 동작을 바꾼다.
         tableDatabase.addValueEventListener(object : ValueEventListener {
 
             @SuppressLint("SetTextI18n")
@@ -186,6 +203,7 @@ class PaymentListActivity : AppCompatActivity() {
         })
     }
 
+    // ViewModel 의 장바구니 LiveData 를 구독해서 RecyclerView 를 갱신한다.
     @SuppressLint("NotifyDataSetChanged")
     private fun observerData() {
         viewModel.fetchData().observe(this) {
@@ -197,17 +215,29 @@ class PaymentListActivity : AppCompatActivity() {
 
     }
 
+    /**
+     * 결제창을 띄운 뒤 1초마다 결제 상태를 조회한다.
+     * 딥링크로 pg_token 이 들어오면 requestPaymentStatus 안에서 승인 단계로 넘어간다.
+     */
     fun startPollingPaymentStatus(tid: String) {
         val pollingTask = Runnable { requestPaymentStatus(tid) }
         executor.scheduleAtFixedRate(pollingTask, 0, 1, TimeUnit.SECONDS)
     }
 
     // 결제 완료 시 폴링 상태 해제
+    // 결제 상태 조회를 멈춘다. (executor 를 shutdown 하므로 같은 화면에서 재시작은 불가)
     fun stopPollingPaymentStatus() {
         executor.shutdown()
     }
 
     // 결제 준비 단계
+    /**
+     * [1단계] 카카오페이 결제 준비 API 호출
+     *
+     * @param name 상품명 (현재 "1번 테이블" 고정)
+     * @param pay  결제 금액
+     * 응답의 next_redirect_pc_url 을 브라우저로 열고, tid(결제 고유번호)로 상태 조회를 시작한다.
+     */
     private fun kakaoPayReady(name: String, pay: Int) {
         val readyUrl = "https://kapi.kakao.com/v1/payment/ready"
         // 파라미터 설정
@@ -267,6 +297,11 @@ class PaymentListActivity : AppCompatActivity() {
     }
 
     // 결제 상태 조회
+    /**
+     * [2단계] 결제 상태 조회 (폴링)
+     *
+     * 딥링크(onNewIntent)로 받은 Intent 에 pg_token 이 있으면 폴링을 멈추고 승인 요청으로 넘어간다.
+     */
     private fun requestPaymentStatus(tid: String) {
         val orderUrl = "https://kapi.kakao.com/v1/payment/order"
         // 요청 바디에 담을 파라미터
@@ -322,6 +357,7 @@ class PaymentListActivity : AppCompatActivity() {
         })
     }
 
+    // 결제 완료 후 myapp:// 딥링크로 이 화면이 다시 열릴 때 호출된다. (singleTop 이라 새로 만들지 않고 Intent 만 전달됨)
     override fun onNewIntent(intent: Intent?) {
         super.onNewIntent(intent)
         // 새로운 Intent 받으면 receivedIntent 변수에 저장
@@ -329,6 +365,12 @@ class PaymentListActivity : AppCompatActivity() {
     }
 
     // 결제 승인 요청
+    /**
+     * [3단계] 카카오페이 결제 승인 API 호출
+     *
+     * 승인 성공 시 장바구니(table)를 master 노드로 복사하고 table 을 삭제한 뒤 시작 화면으로 이동한다.
+     * master 는 서빙 로봇 태블릿 앱(MCA_Third_project)이 읽어서 서빙할 주문으로 표시한다.
+     */
     private fun kakaoPayApprove(pg_token: String, tid: String) {
 
         val intentMainActivity = Intent(this@PaymentListActivity, MainActivity::class.java)
